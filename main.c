@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -23,7 +24,11 @@
 /* Character constant */
 #define CH_NU '\0' // Null character
 
+/* Command line argument flag constant */
+#define CACHING_FLAG "-c" // Caching flag
+
 /* Status constants */
+#define EQUAL 0 // Compared strings are equal
 #define SUCCESS 0 // Function executed successfully
 #define ENABLED 1 // Flag enabled
 
@@ -37,17 +42,23 @@ int
 main(int argc, char **argv) {
 	int sockfd /* Listening socket */, newsockfd /* Connection socket */, port
 	/* Client port */, n /* Number of characters read or written */;
-	char ip[INET_ADDRSTRLEN] /* IP address of client */, buffer[BUFFER_SIZE+1];
+	char *service, ip[INET_ADDRSTRLEN] /* IP address of client */,
+        buffer[BUFFER_SIZE+1];
+	bool perform_caching=false;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
 
-	/* Check number of arguments */
+	/* Check number of arguments and parse */
 	if (argc<MIN_ARGS||argc>MAX_ARGS) {
 		fprintf(stderr, "Invalid number of arguments\n");
 		exit(EXIT_FAILURE);
 	}
+    service = argv[INIT_I+2];
+    if (argc>MIN_ARGS&&strcmp(argv[INIT_I+3], CACHING_FLAG)==EQUAL) {
+        perform_caching = true;
+    }
 
-	sockfd = create_listening_socket(argv[INIT_I+2]);
+	sockfd = create_listening_socket(service);
 
 	/* Listen on socket and queue up to 5 connection requests */
 	if (listen(sockfd, MAX_QUEUE)<SUCCESS) {
