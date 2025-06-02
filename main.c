@@ -42,8 +42,7 @@ int
 main(int argc, char **argv) {
 	int sockfd /* Listening socket */, newsockfd /* Connection socket */, port
 	/* Client port */, n /* Number of characters read or written */;
-	char *service, ip[INET_ADDRSTRLEN] /* IP address of client */,
-        buffer[BUFFER_SIZE+1];
+	char *service, buffer[BUFFER_SIZE+1];
 	bool perform_caching=false;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
@@ -75,12 +74,25 @@ main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	/* Print IPv4 peer information */
+	/* Print peer information to 'stderr' */
 	getpeername(newsockfd, (struct sockaddr *)&client_addr, &client_addr_size);
-	inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
-     INET_ADDRSTRLEN); // Convert IP address to string
-	port = ntohs(client_addr.sin_port);
-	printf("New connection from %s:%d on socket %d\n", ip, port, newsockfd);
+    if (client_addr.sin_family==AF_INET) { // IPv4 address
+        char ip[INET_ADDRSTRLEN] /* IPv4 address of client */;
+
+        inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
+                  INET_ADDRSTRLEN); // Convert IPv4 address to string
+        port = ntohs(client_addr.sin_port);
+        fprintf(stderr, "New IPv4 connection from %s:%d on socket %d\n", ip,
+                port, newsockfd);
+    } else { // IPv6 address
+        char ip[INET6_ADDRSTRLEN] /* IPv6 address of client */
+
+        inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
+            INET6_ADDRSTRLEN); // Convert IPv6 address to string
+        port = ntohs(client_addr.sin_port);
+        fprintf(stderr, "New IPv6 connection from %s:%d on socket %d\n", ip,
+                port, newsockfd);
+    }
 
 	/* Read characters from connection into 'buffer' and print */
 	n = read(newsockfd, buffer, BUFFER_SIZE);
