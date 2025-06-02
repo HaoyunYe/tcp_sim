@@ -16,7 +16,7 @@
 /* Numerical constants */
 #define MIN_ARGS 3 // Minimum number of arguments
 #define MAX_ARGS 4 // Maximum number of arguments
-#define MAX_QUEUE 5 // Maximum number of connection requests in queue
+#define MAX_QUEUE 10 // Maximum number of connection requests in queue
 #define BUFFER_SIZE 255 // Buffer size
 #define INIT_I 0 // Initial index
 #define INIT_N 0 // Initial number
@@ -60,7 +60,7 @@ main(int argc, char **argv) {
 
 	sockfd = create_listening_socket(service);
 
-	/* Listen on socket and queue up to 5 connection requests */
+	/* Listen on socket and queue up to 10 connection requests */
 	if (listen(sockfd, MAX_QUEUE)<SUCCESS) {
 		perror("listen");
 		exit(EXIT_FAILURE);
@@ -112,9 +112,9 @@ create_listening_socket(char *service) {
 	struct addrinfo hints /* Address information hints */, *res /* Pointer to
 	address information */;
 
-	/* Create IPv4 address to listen to (with given port number) */
+	/* Create IP address to listen to (with given port number) */
 	memset(&hints, INIT_N, sizeof(hints));
-	hints.ai_family = AF_INET; // IPv4 address
+	hints.ai_family = AF_UNSPEC; // Unspecified IP address type
 	hints.ai_socktype = SOCK_STREAM; // Socket type is byte streams
 	hints.ai_flags = AI_PASSIVE; // as listening socket
 	s = getaddrinfo(NULL, service, &hints, &res);
