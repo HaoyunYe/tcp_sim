@@ -85,7 +85,7 @@ main(int argc, char **argv) {
         fprintf(stderr, "New IPv4 connection from %s:%d on socket %d\n", ip,
                 port, newsockfd);
     } else { // IPv6 address
-        char ip[INET6_ADDRSTRLEN] /* IPv6 address of client */
+        char ip[INET6_ADDRSTRLEN] /* IPv6 address of client */;
 
         inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
             INET6_ADDRSTRLEN); // Convert IPv6 address to string
