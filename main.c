@@ -1,4 +1,4 @@
-/* Comment */
+/* Caching web proxy program for HTTP/1.1 */
 
 #define _POSIX_C_SOURCE 200112L // Define POSIX version
 
@@ -13,7 +13,8 @@
 
 /* Constant definitions ------------------------------------------------------*/
 /* Numerical constants */
-#define MIN_ARGS 2 // Minimum number of arguments
+#define MIN_ARGS 3 // Minimum number of arguments
+#define MAX_ARGS 4 // Maximum number of arguments
 #define MAX_QUEUE 5 // Maximum number of connection requests in queue
 #define BUFFER_SIZE 255 // Buffer size
 #define INIT_I 0 // Initial index
@@ -40,13 +41,13 @@ main(int argc, char **argv) {
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
 
-	/* Check if port number is provided */
-	if (argc<MIN_ARGS) {
-		fprintf(stderr, "Port not provided\n");
+	/* Check number of arguments */
+	if (argc<MIN_ARGS||argc>MAX_ARGS) {
+		fprintf(stderr, "Invalid number of arguments\n");
 		exit(EXIT_FAILURE);
 	}
 
-	sockfd = create_listening_socket(argv[INIT_I+1]);
+	sockfd = create_listening_socket(argv[INIT_I+2]);
 
 	/* Listen on socket and queue up to 5 connection requests */
 	if (listen(sockfd, MAX_QUEUE)<SUCCESS) {
