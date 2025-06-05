@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-Wall
 EXE=htproxy
-OBJ=
+OBJ=message.o
 
 all: $(EXE)
 
