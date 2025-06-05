@@ -3,6 +3,7 @@
 #define _POSIX_C_SOURCE 200112L // Define POSIX version
 
 /* Inclusions ----------------------------------------------------------------*/
+/* Library inclusions */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,10 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+
+/* File inclusion */
+#include "message.h"
+
 /*----------------------------------------------------------------------------*/
 
 /* Constant definitions ------------------------------------------------------*/
@@ -17,7 +22,7 @@
 #define MIN_ARGS 3 // Minimum number of arguments
 #define MAX_ARGS 4 // Maximum number of arguments
 #define MAX_QUEUE 10 // Maximum number of connection requests in queue
-#define BUFFER_SIZE 255 // Buffer size
+#define BUFFER_SIZE 8192 // Buffer size
 #define INIT_I 0 // Initial index
 #define INIT_N 0 // Initial number
 
@@ -41,7 +46,7 @@ int create_listening_socket(char *service);
 int
 main(int argc, char **argv) {
 	int sockfd /* Listening socket */, newsockfd /* Connection socket */, port
-	/* Client port */, n /* Number of characters read or written */;
+	/* Client port */, n /* Number of 'char's read or written */;
 	char *service, buffer[BUFFER_SIZE+1];
 	bool perform_caching=false;
 	struct sockaddr_in client_addr;
@@ -94,14 +99,9 @@ main(int argc, char **argv) {
                 port, newsockfd);
     }
 
-	/* Read characters from connection into 'buffer' and print */
-	n = read(newsockfd, buffer, BUFFER_SIZE);
-	if (n<SUCCESS) {
-		perror("read");
-		exit(EXIT_FAILURE);
-	}
-	buffer[n] = CH_NU;
-	printf("Received message in 'buffer': %s\n", buffer);
+	/* Read message from client into 'buffer' and print to 'stderr' */
+	read_message(newsockfd, buffer, BUFFER_SIZE);
+	fprintf(stderr, "Client request:\n%s\n", buffer);
 
 	/* Write message to client */
 	n = write(newsockfd, "Message received\n", strlen("Message received\n"));
