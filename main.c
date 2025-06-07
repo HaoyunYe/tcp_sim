@@ -1,6 +1,9 @@
 /* Caching web proxy program for HTTP/1.1 */
 
+/* Source definitions --------------------------------------------------------*/
 #define _POSIX_C_SOURCE 200112L // Define POSIX version
+#define _GNU_SOURCE // Define GNU source
+/*----------------------------------------------------------------------------*/
 
 /* Inclusions ----------------------------------------------------------------*/
 /* Library inclusions */
@@ -26,8 +29,9 @@
 #define INIT_I 0 // Initial index
 #define INIT_N 0 // Initial number
 
-/* Character constant */
+/* Character constants */
 #define CH_NU '\0' // Null character
+#define CH_NL '\n' // Newline character
 
 /* Command line argument flag constant */
 #define CACHING_FLAG "-c" // Caching flag
@@ -47,7 +51,8 @@ int
 main(int argc, char **argv) {
 	int sockfd /* Listening socket */, newsockfd /* Connection socket */, port
 	/* Client port */, n /* Number of 'char's read or written */;
-	char *service, buffer[BUFFER_SIZE+1];
+	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client request
+	*/, *header=NULL /* Request header */;
 	bool perform_caching=false;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
@@ -100,8 +105,18 @@ main(int argc, char **argv) {
     }
 
 	/* Read message from client into 'buffer' and print to 'stderr' */
-	read_message(newsockfd, buffer, BUFFER_SIZE);
+	n = read_message(newsockfd, buffer, BUFFER_SIZE);
 	fprintf(stderr, "Client request:\n%s\n", buffer);
+//	fprintf(stderr, "TEMP DEBUG: n = %d, strlen(buffer) = %ld\n", n,
+//        strlen(buffer));
+
+    /* */
+    request = strdup(buffer);
+    header = strtok(buffer, CH_NL);
+    while (header!=NULL) {
+        fprintf(stderr, "TEMP DEBUG: header: %s\n", header);
+        header = strtok(NULL, CH_NL);
+    }
 
 	/* Write message to client */
 	n = write(newsockfd, "Message received\n", strlen("Message received\n"));
@@ -109,6 +124,7 @@ main(int argc, char **argv) {
 		perror("write");
 		exit(EXIT_FAILURE);
 	}
+    free(request);
 
 	/* Close sockets */
 	close(sockfd);
@@ -121,8 +137,8 @@ main(int argc, char **argv) {
 int
 create_listening_socket(char *service) {
 	int sockfd /* Socket file descriptor */, s, re /* Port reuse flag */;
-	struct addrinfo hints /* Address information hints */, *res /* Pointer to
-	address information */;
+	struct addrinfo hints /* Address information hints */, *res=NULL /* Pointer
+	to address information */;
 
 	/* Create IP address to listen to (with given port number) */
 	memset(&hints, INIT_N, sizeof(hints));
