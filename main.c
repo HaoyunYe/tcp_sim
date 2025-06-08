@@ -14,6 +14,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <ctype.h>
 
 /* File inclusion */
 #include "message.h"
@@ -29,9 +30,8 @@
 #define INIT_I 0 // Initial index
 #define INIT_N 0 // Initial number
 
-/* Character constants */
+/* Character constant */
 #define CH_NU '\0' // Null character
-#define CH_NL '\n' // Newline character
 
 /* Command line argument flag constant */
 #define CACHING_FLAG "-c" // Caching flag
@@ -50,9 +50,9 @@ int create_listening_socket(char *service);
 int
 main(int argc, char **argv) {
 	int sockfd /* Listening socket */, newsockfd /* Connection socket */, port
-	/* Client port */, n /* Number of 'char's read or written */;
+	/* Client port */, n /* Number of 'char's read or written */, i;
 	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client request
-	*/, *header=NULL /* Request header */;
+	*/, *header=NULL /* Request header */, *host=NULL /* Requested host */;
 	bool perform_caching=false;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
@@ -112,10 +112,18 @@ main(int argc, char **argv) {
 
     /* */
     request = strdup(buffer);
-    header = strtok(buffer, CH_NL);
+    header = strtok(buffer, "\n");
     while (header!=NULL) {
+        for (i=INIT_I; i<strlen(header)&&header[i]!=':'; i++) {
+            header[i] = tolower(header[i]);
+        }
         fprintf(stderr, "TEMP DEBUG: header: %s\n", header);
-        header = strtok(NULL, CH_NL);
+        if (strstr(header, "host: ")) {
+            host = &header[INIT_I+6];
+            fprintf(stderr, "TEMP DEBUG: host: %s\n", host);
+            break;
+        }
+        header = strtok(NULL, "\n");
     }
 
 	/* Write message to client */
