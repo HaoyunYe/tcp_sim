@@ -33,24 +33,28 @@
 /* Character constant */
 #define CH_NU '\0' // Null character
 
-/* Command line argument flag constant */
+/* String constants */
 #define CACHING_FLAG "-c" // Caching flag
+#define PORT_80 "80" // Port 80
 
 /* Status constants */
 #define EQUAL 0 // Compared strings are equal
 #define SUCCESS 0 // Function executed successfully
 #define ENABLED 1 // Flag enabled
+#define ERROR -1 // Error occurred
 
 /*----------------------------------------------------------------------------*/
 
-/* Function prototype --------------------------------------------------------*/
+/* Function prototypes -------------------------------------------------------*/
 int create_listening_socket(char *service);
+int create_connection_socket(char *host);
 /*----------------------------------------------------------------------------*/
 
 int
 main(int argc, char **argv) {
-	int sockfd /* Listening socket */, newsockfd /* Connection socket */, port
-	/* Client port */, n /* Number of 'char's read or written */, i;
+	int sockfd /* Listening socket */, newsockfd /* Connection socket */,
+    server_sockfd, port /* Client port */, n /* Number of 'char's read or
+    written */, i;
 	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client request
 	*/, *header=NULL /* Request header */, *host=NULL /* Requested host */;
 	bool perform_caching=false;
@@ -110,21 +114,24 @@ main(int argc, char **argv) {
 //	fprintf(stderr, "TEMP DEBUG: n = %d, strlen(buffer) = %ld\n", n,
 //        strlen(buffer));
 
-    /* */
+    /* Identify 'host' */
     request = strdup(buffer);
-    header = strtok(buffer, "\n");
+    header = strtok(buffer, "\r\n");
     while (header!=NULL) {
         for (i=INIT_I; i<strlen(header)&&header[i]!=':'; i++) {
             header[i] = tolower(header[i]);
         }
-        fprintf(stderr, "TEMP DEBUG: header: %s\n", header);
+//        fprintf(stderr, "TEMP DEBUG: header: %s\n", header);
         if (strstr(header, "host: ")) {
             host = &header[INIT_I+6];
-            fprintf(stderr, "TEMP DEBUG: host: %s\n", host);
+//            fprintf(stderr, "TEMP DEBUG: host: %s\n", host);
             break;
         }
-        header = strtok(NULL, "\n");
+        header = strtok(NULL, "\r\n");
     }
+
+    server_sockfd = create_connection_socket(host);
+ 	
 
 	/* Write message to client */
 	n = write(newsockfd, "Message received\n", strlen("Message received\n"));
@@ -185,4 +192,41 @@ create_listening_socket(char *service) {
 	freeaddrinfo(res);
 
 	return sockfd;
+}
+
+/* Create connection socket to 'host' port 80 */
+int
+create_connection_socket(char *host) {
+    int sockfd, s;
+    struct addrinfo hints /* Server address information hints */, *servinfo=NULL
+	/* Server address information */, *rp=NULL /* Result (address) pointer */;
+
+    /* Get server address */
+	memset(&hints, INIT_N, sizeof(hints));
+	hints.ai_family = AF_UNSPEC; // Unspecified IP address type
+	hints.ai_socktype = SOCK_STREAM; // Socket type is byte streams
+	s = getaddrinfo(host, PORT_80, &hints, &servinfo);
+	if (s!=SUCCESS) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+		exit(EXIT_FAILURE);
+	}
+
+	/* Connect to first valid address */
+	for (rp=servinfo; rp!=NULL; rp=rp->ai_next) {
+		sockfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+		if (sockfd==ERROR) {
+			continue;
+		} else if (connect(sockfd, rp->ai_addr, rp->ai_addrlen)==SUCCESS) {
+    		// Connection successful
+			break;
+		}
+		close(sockfd);
+	}
+	if (rp==NULL) {
+		fprintf(stderr, "Connection to server failed\n");
+		exit(EXIT_FAILURE);
+	}
+	freeaddrinfo(servinfo);
+
+    return sockfd;
 }
