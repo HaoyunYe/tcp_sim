@@ -132,13 +132,9 @@ main(int argc, char **argv) {
 
     server_sockfd = create_connection_socket(host);
  	
-
-	/* Write message to client */
-	n = write(newsockfd, "Message received\n", strlen("Message received\n"));
-	if (n<SUCCESS) {
-		perror("write");
-		exit(EXIT_FAILURE);
-	}
+ 	n = send_message(server_sockfd, request, strlen(request));
+    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
+            strlen(request));
     free(request);
 
 	/* Close sockets */

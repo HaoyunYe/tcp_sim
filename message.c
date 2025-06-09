@@ -16,3 +16,17 @@ read_message(int sockfd, char *buffer, int buffer_size) {
 
     return n;
 }
+
+/* Send message to client or server and returns number of 'char's sent */
+int
+send_message(int sockfd, char *message, int message_len) {
+    int n; // Number of 'char's sent
+
+    n = write(sockfd, message, message_len);
+	if (n<SUCCESS) {
+		perror("write");
+		exit(EXIT_FAILURE);
+	}
+
+    return n;
+}
