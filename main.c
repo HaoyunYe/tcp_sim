@@ -149,10 +149,13 @@ main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    /* */
+    /* Read response and send to client */
     while ((n=getline(&line, &line_size, server_stream))!=ERROR) {
         fprintf(stderr, "Server response line: %s\n", line);
 //       fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
+        n = send_message(newsockfd, line, n);
+//        fprintf(stderr, "TEMP DEBUG: n = %d, strlen(line) = %ld\n", n,
+//                strlen(line));
     }
     free(line);
     line = NULL;
