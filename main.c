@@ -60,6 +60,7 @@ main(int argc, char **argv) {
 	bool perform_caching=false;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
+    FILE *server_stream=NULL;
 
 	/* Check number of arguments and parse */
 	if (argc<MIN_ARGS||argc>MAX_ARGS) {
@@ -132,14 +133,25 @@ main(int argc, char **argv) {
 
     server_sockfd = create_connection_socket(host);
  	
+ 	/* Send 'request' to 'host' */
  	n = send_message(server_sockfd, request, strlen(request));
-    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
-            strlen(request));
+//    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
+//            strlen(request));
     free(request);
 
-	/* Close sockets */
-	close(sockfd);
+    /* Create 'server_stream' with 'server_sockfd' */
+    server_stream = fdopen(server_sockfd, "r");
+    if (server_stream==NULL) {
+        perror("fdopen");
+        exit(EXIT_FAILURE);
+    }
+    fprintf(stderr, "TEMP DEBUG: 'server_stream': %p\n", server_stream);
+
+	/* Close stream and sockets */
+    fclose(server_stream);
+    close(server_sockfd);
 	close(newsockfd);
+    close(sockfd);
 
 	return 0;
 }
