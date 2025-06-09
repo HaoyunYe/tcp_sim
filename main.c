@@ -149,9 +149,9 @@ main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    n = read_line(server_stream, &line, &line_size);
+    n = getline(&line, &line_size, server_stream);
     fprintf(stderr, "Server response line: %s\n", line);
-//    fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
+    fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
 
     free(line);
     line = NULL;
