@@ -90,6 +90,7 @@ main(int argc, char **argv) {
 		perror("accept");
 		exit(EXIT_FAILURE);
 	}
+    printf("Accepted\n");
 
 	/* Print peer information to 'stderr' */
 	getpeername(newsockfd, (struct sockaddr *)&client_addr, &client_addr_size);
@@ -133,7 +134,9 @@ main(int argc, char **argv) {
         header = strtok(NULL, "\r\n");
     }
 
+    /* Create 'server_sockfd' */
     server_sockfd = create_connection_socket(host);
+    printf("Accepted\n");
  	
  	/* Send 'request' to 'host' */
  	n = send_message(server_sockfd, request, strlen(request));
