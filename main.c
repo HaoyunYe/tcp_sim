@@ -53,11 +53,13 @@ int create_connection_socket(char *host);
 int
 main(int argc, char **argv) {
 	int sockfd /* Listening socket */, newsockfd /* Connection socket */,
-    server_sockfd, port /* Client port */, n /* Number of 'char's read or
+    server_sockfd, port /* Client port */, n=INIT_N /* Number of 'char's read or
     written */, i;
 	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client request
-	*/, *header=NULL /* Request header */, *host=NULL /* Requested host */;
+	*/, *header=NULL /* Request header */, *host=NULL /* Requested host */,
+        *line=NULL /* Message line */;
 	bool perform_caching=false;
+	size_t line_size=INIT_N; // Size of buffer 'line'
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size;
     FILE *server_stream=NULL;
@@ -138,6 +140,7 @@ main(int argc, char **argv) {
 //    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
 //            strlen(request));
     free(request);
+    request = NULL;
 
     /* Create 'server_stream' with 'server_sockfd' */
     server_stream = fdopen(server_sockfd, "r");
@@ -145,7 +148,13 @@ main(int argc, char **argv) {
         perror("fdopen");
         exit(EXIT_FAILURE);
     }
-    fprintf(stderr, "TEMP DEBUG: 'server_stream': %p\n", server_stream);
+
+    n = read_line(server_stream, &line, &line_size);
+    fprintf(stderr, "Server response line: %s\n", line);
+//    fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
+
+    free(line);
+    line = NULL;
 
 	/* Close stream and sockets */
     fclose(server_stream);
