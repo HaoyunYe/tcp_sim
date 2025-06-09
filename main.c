@@ -149,10 +149,11 @@ main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    n = getline(&line, &line_size, server_stream);
-    fprintf(stderr, "Server response line: %s\n", line);
-    fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
-
+    /* */
+    while ((n=getline(&line, &line_size, server_stream))!=ERROR) {
+        fprintf(stderr, "Server response line: %s\n", line);
+//       fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
+    }
     free(line);
     line = NULL;
 
