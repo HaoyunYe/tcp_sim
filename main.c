@@ -88,8 +88,9 @@ main(int argc, char **argv) {
         client_sockfd = accept(listening_sockfd, (struct sockaddr *)&client_addr
 , &client_addr_size); // Create connection socket
         if (client_sockfd<SUCCESS) {
-            perror("accept");
-            exit(EXIT_FAILURE);
+            fprintf(stderr, "Client socket creation failed, continuing to "
+                            "listen for new connection requests\n");
+            continue;
         }
         printf("Accepted\n");
 
@@ -138,6 +139,11 @@ main(int argc, char **argv) {
 
         /* Create 'server_sockfd' */
         server_sockfd = create_connection_socket(host);
+        if (server_sockfd<SUCCESS) {
+            fprintf(stderr, "Server socket creation failed, continuing to "
+                            "listen for new connection requests\n");
+            continue;
+        }
         printf("Accepted\n");
 
         /* Send 'request' to 'host' */
@@ -237,7 +243,7 @@ create_connection_socket(char *host) {
 	s = getaddrinfo(host, PORT_80, &hints, &servinfo);
 	if (s!=SUCCESS) {
 		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
-		exit(EXIT_FAILURE);
+		return ERROR;
 	}
 
 	/* Connect to first valid address */
@@ -253,7 +259,7 @@ create_connection_socket(char *host) {
 	}
 	if (rp==NULL) {
 		fprintf(stderr, "Connection to server failed\n");
-		exit(EXIT_FAILURE);
+		return ERROR;
 	}
 	freeaddrinfo(servinfo);
 
