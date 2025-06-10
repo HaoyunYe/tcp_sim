@@ -52,12 +52,11 @@ int create_connection_socket(char *host);
 
 int
 main(int argc, char **argv) {
-	int sockfd /* Listening socket */, newsockfd /* Connection socket */,
-    server_sockfd, port /* Client port */, n=INIT_N /* Number of 'char's read or
-    written */, i;
-	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client request
-	*/, *header=NULL /* Request header */, *host=NULL /* Requested host */,
-        *line=NULL /* Message line */;
+	int listening_sockfd, client_sockfd, server_sockfd, port /* Client port
+    */, n=INIT_N /* Number of 'char's read or written */, i;
+	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client
+    request */, *header=NULL /* Request header */, *host=NULL /* Requested host
+    */, *line=NULL /* Message line */;
 	bool perform_caching=false;
 	size_t line_size=INIT_N; // Size of buffer 'line'
 	struct sockaddr_in client_addr;
@@ -74,26 +73,26 @@ main(int argc, char **argv) {
         perform_caching = true;
     }
 
-	sockfd = create_listening_socket(service);
+	listening_sockfd = create_listening_socket(service);
 
 	/* Listen on socket and queue up to 10 connection requests */
-	if (listen(sockfd, MAX_QUEUE)<SUCCESS) {
+	if (listen(listening_sockfd, MAX_QUEUE)<SUCCESS) {
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 
 	/* Wait for and accept a connection */
 	client_addr_size = sizeof(client_addr);
-	newsockfd = accept(sockfd, (struct sockaddr *)&client_addr,
+	client_sockfd = accept(listening_sockfd, (struct sockaddr *)&client_addr,
         &client_addr_size); // Create connection socket
-	if (newsockfd<SUCCESS) {
+	if (client_sockfd<SUCCESS) {
 		perror("accept");
 		exit(EXIT_FAILURE);
 	}
     printf("Accepted\n");
 
 	/* Print peer information to 'stderr' */
-	getpeername(newsockfd, (struct sockaddr *)&client_addr, &client_addr_size);
+	getpeername(client_sockfd, (struct sockaddr *)&client_addr, &client_addr_size);
     if (client_addr.sin_family==AF_INET) { // IPv4 address
         char ip[INET_ADDRSTRLEN] /* IPv4 address of client */;
 
@@ -101,7 +100,7 @@ main(int argc, char **argv) {
                   INET_ADDRSTRLEN); // Convert IPv4 address to string
         port = ntohs(client_addr.sin_port);
         fprintf(stderr, "New IPv4 connection from %s:%d on socket %d\n", ip,
-                port, newsockfd);
+                port, client_sockfd);
     } else { // IPv6 address
         char ip[INET6_ADDRSTRLEN] /* IPv6 address of client */;
 
@@ -109,11 +108,11 @@ main(int argc, char **argv) {
             INET6_ADDRSTRLEN); // Convert IPv6 address to string
         port = ntohs(client_addr.sin_port);
         fprintf(stderr, "New IPv6 connection from %s:%d on socket %d\n", ip,
-                port, newsockfd);
+                port, client_sockfd);
     }
 
 	/* Read message from client into 'buffer' and print to 'stderr' */
-	n = read_message(newsockfd, buffer, BUFFER_SIZE);
+	n = read_message(client_sockfd, buffer, BUFFER_SIZE);
 	fprintf(stderr, "Client request:\n%s\n", buffer);
 //	fprintf(stderr, "TEMP DEBUG: n = %d, strlen(buffer) = %ld\n", n,
 //        strlen(buffer));
@@ -156,7 +155,7 @@ main(int argc, char **argv) {
     while ((n=getline(&line, &line_size, server_stream))!=ERROR) {
         fprintf(stderr, "Server response line: %s\n", line);
 //       fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
-        n = send_message(newsockfd, line, n);
+        n = send_message(client_sockfd, line, n);
 //        fprintf(stderr, "TEMP DEBUG: n = %d, strlen(line) = %ld\n", n,
 //                strlen(line));
     }
@@ -166,8 +165,8 @@ main(int argc, char **argv) {
 	/* Close stream and sockets */
     fclose(server_stream);
     close(server_sockfd);
-	close(newsockfd);
-    close(sockfd);
+	close(client_sockfd);
+    close(listening_sockfd);
 
 	return 0;
 }
