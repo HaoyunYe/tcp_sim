@@ -57,7 +57,7 @@ main(int argc, char **argv) {
     char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client
     request */, *header=NULL /* Request header */, *host=NULL /* Requested host
          */, *line=NULL /* Message line */, last_line[BUFFER_SIZE+1] /* Last
-         line of request header */;
+         line of request header */, request_uri[BUFFER_SIZE+1];
     bool perform_caching=false, wait=true /* Wait for next connection request */
         ;
     size_t line_size=INIT_N; // Size of buffer 'line'
@@ -122,9 +122,17 @@ main(int argc, char **argv) {
         //	fprintf(stderr, "TEMP DEBUG: n = %d, strlen(buffer) = %ld\n", n,
         //        strlen(buffer));
 
-        /* Identify 'host' */
+        /* Identify 'host' and print 'last_line' */
         request = strdup(buffer);
         header = strtok(buffer, "\r\n");
+
+        int ret;
+        char buffer1[BUFFER_SIZE+1];
+
+        ret = sscanf(header, "%s %s %s", buffer, request_uri, buffer1);
+
+        fprintf(stderr, "TEMP DEBUG: buffer = %s, request_uri = %s, buffer1 = %s, ret = %d\n", buffer, request_uri, buffer1, ret);
+
         while (header!=NULL) {
             strcpy(last_line, header);
             for (i=INIT_I; i<strlen(header)&&header[i]!=':'; i++) {
@@ -141,8 +149,6 @@ main(int argc, char **argv) {
 
         /* Create 'server_sockfd' */
         server_sockfd = create_connection_socket(host);
-        free(host);
-        host = NULL;
         if (server_sockfd<SUCCESS) {
             fprintf(stderr, "Server socket creation failed, continuing to "
                             "listen for new connection requests\n");
@@ -154,6 +160,9 @@ main(int argc, char **argv) {
         n = send_message(server_sockfd, request, strlen(request));
         //    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
         //            strlen(request));
+        printf("GETting %s %s\n", host, request_uri);
+        free(host);
+        host = NULL;
         free(request);
         request = NULL;
 
