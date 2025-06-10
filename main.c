@@ -52,120 +52,126 @@ int create_connection_socket(char *host);
 
 int
 main(int argc, char **argv) {
-	int listening_sockfd, client_sockfd, server_sockfd, port /* Client port
+    int listening_sockfd, client_sockfd, server_sockfd, port /* Client port
     */, n=INIT_N /* Number of 'char's read or written */, i;
-	char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client
+    char *service=NULL, buffer[BUFFER_SIZE+1], *request=NULL /* Client
     request */, *header=NULL /* Request header */, *host=NULL /* Requested host
-    */, *line=NULL /* Message line */;
-	bool perform_caching=false;
-	size_t line_size=INIT_N; // Size of buffer 'line'
-	struct sockaddr_in client_addr;
-	socklen_t client_addr_size;
+         */, *line=NULL /* Message line */;
+    bool perform_caching=false, wait=true /* Wait for next connection request */
+        ;
+    size_t line_size=INIT_N; // Size of buffer 'line'
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_size;
     FILE *server_stream=NULL;
 
-	/* Check number of arguments and parse */
-	if (argc<MIN_ARGS||argc>MAX_ARGS) {
-		fprintf(stderr, "Invalid number of arguments\n");
-		exit(EXIT_FAILURE);
-	}
+    /* Check number of arguments and parse */
+    if (argc<MIN_ARGS||argc>MAX_ARGS) {
+        fprintf(stderr, "Invalid number of arguments\n");
+        exit(EXIT_FAILURE);
+    }
     service = argv[INIT_I+2];
     if (argc>MIN_ARGS&&strcmp(argv[INIT_I+3], CACHING_FLAG)==EQUAL) {
         perform_caching = true;
     }
 
-	listening_sockfd = create_listening_socket(service);
+    listening_sockfd = create_listening_socket(service);
 
-	/* Listen on socket and queue up to 10 connection requests */
-	if (listen(listening_sockfd, MAX_QUEUE)<SUCCESS) {
-		perror("listen");
-		exit(EXIT_FAILURE);
-	}
-
-	/* Wait for and accept a connection */
-	client_addr_size = sizeof(client_addr);
-	client_sockfd = accept(listening_sockfd, (struct sockaddr *)&client_addr,
-        &client_addr_size); // Create connection socket
-	if (client_sockfd<SUCCESS) {
-		perror("accept");
-		exit(EXIT_FAILURE);
-	}
-    printf("Accepted\n");
-
-	/* Print peer information to 'stderr' */
-	getpeername(client_sockfd, (struct sockaddr *)&client_addr, &client_addr_size);
-    if (client_addr.sin_family==AF_INET) { // IPv4 address
-        char ip[INET_ADDRSTRLEN] /* IPv4 address of client */;
-
-        inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
-                  INET_ADDRSTRLEN); // Convert IPv4 address to string
-        port = ntohs(client_addr.sin_port);
-        fprintf(stderr, "New IPv4 connection from %s:%d on socket %d\n", ip,
-                port, client_sockfd);
-    } else { // IPv6 address
-        char ip[INET6_ADDRSTRLEN] /* IPv6 address of client */;
-
-        inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
-            INET6_ADDRSTRLEN); // Convert IPv6 address to string
-        port = ntohs(client_addr.sin_port);
-        fprintf(stderr, "New IPv6 connection from %s:%d on socket %d\n", ip,
-                port, client_sockfd);
-    }
-
-	/* Read message from client into 'buffer' and print to 'stderr' */
-	n = read_message(client_sockfd, buffer, BUFFER_SIZE);
-	fprintf(stderr, "Client request:\n%s\n", buffer);
-//	fprintf(stderr, "TEMP DEBUG: n = %d, strlen(buffer) = %ld\n", n,
-//        strlen(buffer));
-
-    /* Identify 'host' */
-    request = strdup(buffer);
-    header = strtok(buffer, "\r\n");
-    while (header!=NULL) {
-        for (i=INIT_I; i<strlen(header)&&header[i]!=':'; i++) {
-            header[i] = tolower(header[i]);
+    while (wait) {
+        /* Listen on socket and queue up to 10 connection requests */
+        if (listen(listening_sockfd, MAX_QUEUE)<SUCCESS) {
+            perror("listen");
+            exit(EXIT_FAILURE);
         }
-//        fprintf(stderr, "TEMP DEBUG: header: %s\n", header);
-        if (strstr(header, "host: ")) {
-            host = &header[INIT_I+6];
-//            fprintf(stderr, "TEMP DEBUG: host: %s\n", host);
-            break;
+
+        /* Wait for and accept a connection */
+        client_addr_size = sizeof(client_addr);
+        client_sockfd = accept(listening_sockfd, (struct sockaddr *)&client_addr
+, &client_addr_size); // Create connection socket
+        if (client_sockfd<SUCCESS) {
+            perror("accept");
+            exit(EXIT_FAILURE);
         }
-        header = strtok(NULL, "\r\n");
+        printf("Accepted\n");
+
+        /* Print peer information to 'stderr' */
+        getpeername(client_sockfd, (struct sockaddr *)&client_addr,
+                    &client_addr_size);
+        if (client_addr.sin_family==AF_INET) { // IPv4 address
+            char ip[INET_ADDRSTRLEN] /* IPv4 address of client */;
+
+            inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
+                      INET_ADDRSTRLEN); // Convert IPv4 address to string
+            port = ntohs(client_addr.sin_port);
+            fprintf(stderr, "New IPv4 connection from %s:%d on socket %d\n", ip,
+                    port, client_sockfd);
+        } else { // IPv6 address
+            char ip[INET6_ADDRSTRLEN] /* IPv6 address of client */;
+
+            inet_ntop(client_addr.sin_family, &client_addr.sin_addr, ip,
+                      INET6_ADDRSTRLEN); // Convert IPv6 address to string
+            port = ntohs(client_addr.sin_port);
+            fprintf(stderr, "New IPv6 connection from %s:%d on socket %d\n", ip,
+                    port, client_sockfd);
+        }
+
+        /* Read message from client into 'buffer' and print to 'stderr' */
+        n = read_message(client_sockfd, buffer, BUFFER_SIZE);
+        fprintf(stderr, "Client request:\n%s\n", buffer);
+        //	fprintf(stderr, "TEMP DEBUG: n = %d, strlen(buffer) = %ld\n", n,
+        //        strlen(buffer));
+
+        /* Identify 'host' */
+        request = strdup(buffer);
+        header = strtok(buffer, "\r\n");
+        while (header!=NULL) {
+            for (i=INIT_I; i<strlen(header)&&header[i]!=':'; i++) {
+                header[i] = tolower(header[i]);
+            }
+            //        fprintf(stderr, "TEMP DEBUG: header: %s\n", header);
+            if (strstr(header, "host: ")) {
+                host = &header[INIT_I+6];
+                //            fprintf(stderr, "TEMP DEBUG: host: %s\n", host);
+                break;
+            }
+            header = strtok(NULL, "\r\n");
+        }
+
+        /* Create 'server_sockfd' */
+        server_sockfd = create_connection_socket(host);
+        printf("Accepted\n");
+
+        /* Send 'request' to 'host' */
+        n = send_message(server_sockfd, request, strlen(request));
+        //    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
+        //            strlen(request));
+        free(request);
+        request = NULL;
+
+        /* Create 'server_stream' with 'server_sockfd' */
+        server_stream = fdopen(server_sockfd, "r");
+        if (server_stream==NULL) {
+            perror("fdopen");
+            exit(EXIT_FAILURE);
+        }
+
+        /* Read response and send to client */
+        while ((n=getline(&line, &line_size, server_stream))!=ERROR) {
+            fprintf(stderr, "Server response line: %s\n", line);
+//                   fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n,
+//            line_size);
+            n = send_message(client_sockfd, line, n);
+//                   fprintf(stderr, "TEMP DEBUG: n = %d, strlen(line) = %ld\n",
+//            n, strlen(line));
+        }
+        free(line);
+        line = NULL;
+
+        /* Close 'server_stream' and client and server sockets */
+        fclose(server_stream);
+        close(server_sockfd);
+        close(client_sockfd);
     }
 
-    /* Create 'server_sockfd' */
-    server_sockfd = create_connection_socket(host);
-    printf("Accepted\n");
- 	
- 	/* Send 'request' to 'host' */
- 	n = send_message(server_sockfd, request, strlen(request));
-//    fprintf(stderr, "TEMP DEBUG: n = %d, strlen(request) = %ld\n", n,
-//            strlen(request));
-    free(request);
-    request = NULL;
-
-    /* Create 'server_stream' with 'server_sockfd' */
-    server_stream = fdopen(server_sockfd, "r");
-    if (server_stream==NULL) {
-        perror("fdopen");
-        exit(EXIT_FAILURE);
-    }
-
-    /* Read response and send to client */
-    while ((n=getline(&line, &line_size, server_stream))!=ERROR) {
-        fprintf(stderr, "Server response line: %s\n", line);
-//       fprintf(stderr, "TEMP DEBUG: n = %d, line_size = %ld\n", n, line_size);
-        n = send_message(client_sockfd, line, n);
-//        fprintf(stderr, "TEMP DEBUG: n = %d, strlen(line) = %ld\n", n,
-//                strlen(line));
-    }
-    free(line);
-    line = NULL;
-
-	/* Close stream and sockets */
-    fclose(server_stream);
-    close(server_sockfd);
-	close(client_sockfd);
     close(listening_sockfd);
 
 	return 0;
