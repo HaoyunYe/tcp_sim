@@ -5,9 +5,6 @@
 
 void *app_client (void *socket)
 {
-  printf("[Client] Started\n");
-  fflush(stdout);
-
   const int buff_size = 1000;
   uint8_t buff[buff_size];
 

@@ -38,9 +38,6 @@ uint32_t randseq() {
 
 
 sock* connect(size_t window, size_t mss, sock_OS *os) {
-
-  printf("[DEBUG] Inside connect()\n");
-
   sock *sk = (sock *)malloc(sizeof(sock));
 
   assert(sk);
@@ -48,8 +45,6 @@ sock* connect(size_t window, size_t mss, sock_OS *os) {
   sk->os = os;
   sk->tcp = (sock_TCP *)malloc(sizeof(sock_TCP));
   assert(sk->tcp);
-
-  printf("[DEBUG] registering socket as client\n");
 
   register_sock(sk, "client");
 
@@ -101,6 +96,7 @@ sock* accept(size_t window, size_t mss, sock_OS *os) {
   tcp->connected = false;
   tcp->window_size = window;
   tcp->recv_buffer = (uint8_t *)malloc(window);
+
   //2
   memset(tcp->recv_buffer, 0, window);
   
@@ -151,8 +147,7 @@ void ip_arrived_interrupt(sock* sk)
 
       send_ip(sk, (uint8_t *)&reply, sizeof(my_tcphdr));
 
-    } else
-    if (hdr->SYN && hdr->ACK && tcp->state != TCP_ESTABLISHED) {
+    } else if (hdr->SYN && hdr->ACK && tcp->state != TCP_ESTABLISHED) {
       // 客户端收到 SYN+ACK
 
       tcp->ack_no = hdr->seq_no + 1;
