@@ -19,10 +19,10 @@ void *app_client (void *socket)
     usleep(100);
   }
 
-  /* 关键：把第一次读到的这块先打印出来，别丢 */
+  //把第一次读到的这块先打印出来，别丢
   printf("%.*s", (int)len, (char*)buffer);
 
-  /* 再继续把后续块都读完、打印 */
+  // 再继续把后续块都读完、打印
   while ((len = recvtcp(sk, buffer, sizeof(buffer))) > 0) {
     printf("%.*s", (int)len, (char*)buffer);
   }
@@ -41,7 +41,14 @@ void *app_server (void *socket)
   sock *sk = accept (get_tcp_window(sk_OS), get_tcp_mss(sk_OS), sk_OS);
 
   size_t len;
-  // 连续读取直到本次消息读完
+  // 等到第一批数据到达
+  while ((len = recvtcp(sk, buff, buff_size)) == 0) {
+    usleep(100);
+  }
+  // 先打印第一批
+  printf("%.*s", (int)len, (char*)buff);
+
+  // 继续把后续都读完
   while ((len = recvtcp(sk, buff, buff_size)) > 0) {
     printf("%.*s", (int)len, (char*)buff);
   }

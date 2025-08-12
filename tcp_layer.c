@@ -52,7 +52,7 @@ connect(size_t window, size_t mss, sock_OS *os) {
   sk->tcp->ring_buff.curr_len = INIT_N;
 
   
-  // 新增 2.6 初始化
+  //2.6
   sk->tcp->pkt_q_head = 0;
   sk->tcp->pkt_q_tail = 0;
   sk->tcp->pkt_q_count = 0;
@@ -159,7 +159,7 @@ accept(size_t window, size_t mss, sock_OS *os) {
   sk->tcp->ring_buff.curr_len = INIT_N;
 
   
-  // 新增 2.6 初始化
+  //2.6
   sk->tcp->pkt_q_head = 0;
   sk->tcp->pkt_q_tail = 0;
   sk->tcp->pkt_q_count = 0;
@@ -340,7 +340,7 @@ size_t recvtcp(sock *sk, uint8_t *msg_buf, size_t msg_buf_len) {
               ts->recv_pending_payload);
     }
 
-    // 如果该段已读完，准备切到下一个段（回到 while 顶部）
+    // 如果该段已读完，准备切到下一个段
     if (ts->recv_pending_payload == 0) {
       ts->recv_reading_payload = false;
       continue;
@@ -351,7 +351,7 @@ size_t recvtcp(sock *sk, uint8_t *msg_buf, size_t msg_buf_len) {
     size_t can  = ts->recv_pending_payload;
     size_t to_read = (want < can) ? want : can;
 
-    // 保险：环形缓冲中必须至少有 to_read 字节（都是 payload）
+    // 保险：环形缓冲中必须至少有 to_read 字节
     if (ts->ring_buff.curr_len < to_read) {
       // 正常不该发生；若发生，先返回已读部分
       break;
@@ -367,7 +367,7 @@ size_t recvtcp(sock *sk, uint8_t *msg_buf, size_t msg_buf_len) {
     }
   }
 
-  return copied; // 一次可能把多个段拼起来返回
+  return copied;
 }
 
 /* Adapted from https://embedjournal.com/implementing-circular-buffer-embedded-
