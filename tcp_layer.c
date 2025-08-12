@@ -234,25 +234,26 @@ accept(size_t window, size_t mss, sock_OS *os) {
   return sk;
 }
 
-void
-ip_arrived_interrupt(sock *sk) {
+void ip_arrived_interrupt(sock *sk) {
   size_t recv_len;
-  uint8_t *temp_buff=NULL;
-  
-  temp_buff = (uint8_t *)malloc(sizeof(uint8_t)*sk->tcp->window);
+  uint8_t *temp_buff = malloc(sk->tcp->window);
   assert(temp_buff);
 
   fprintf(stderr, "DEBUG: IP packet arrived\n");
   recv_len = recv_ip(sk, temp_buff, sk->tcp->window);
   fprintf(stderr, "DEBUG: IP packet received\n");
+
+  // 将接收到的数据存入 ring buffer
   ring_buff_push(&(sk->tcp->ring_buff), temp_buff, recv_len);
   fprintf(stderr, "DEBUG: IP packet saved to ring buffer\n");
 
-  //2.6
-  // 只为有payload的数据包记录长度 握手包忽略
+  // 如果收到的包长度 >= TCP 头长度，则可能包含 payload
   if (recv_len >= sizeof(tcphdr)) {
     size_t payload = recv_len - sizeof(tcphdr);
+
+    // 如果 payload > 0，则记录长度到队列
     if (payload > 0) {
+      // payload 长度入队（供 recvtcp 消费）
       if (sk->tcp->pkt_q_count < 1024) {
         sk->tcp->pkt_len_q[sk->tcp->pkt_q_tail] = (int)payload;
         sk->tcp->pkt_q_tail = (sk->tcp->pkt_q_tail + 1) % 1024;
@@ -261,10 +262,23 @@ ip_arrived_interrupt(sock *sk) {
         fprintf(stderr, "Packet length queue overflow\n");
         exit(EXIT_FAILURE);
       }
+
+      // 如果连接已建立，回 ACK
+      if (sk->tcp->connection_established) {
+        tcphdr *rx = (tcphdr*)temp_buff;
+        tcphdr ack = {0};
+        ack.ACK = true;
+        ack.ack_no = rx->seq_no + (uint32_t)payload;
+        ack.seq_no = rand_seq(); // 简化随机序列号
+
+        send_ip(sk, (uint8_t*)&ack, sizeof(ack));
+        fprintf(stderr,
+          "DEBUG: sent DATA-ACK with ack_no=%u (rx seq=%u, payload=%zu)\n",
+          ack.ack_no, rx->seq_no, payload);
+      }
     }
   }
 
-  
   free(temp_buff);
 }
 
