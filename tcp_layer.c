@@ -247,13 +247,11 @@ void ip_arrived_interrupt(sock *sk) {
   ring_buff_push(&(sk->tcp->ring_buff), temp_buff, recv_len);
   fprintf(stderr, "DEBUG: IP packet saved to ring buffer\n");
 
-  // 如果收到的包长度 >= TCP 头长度，则可能包含 payload
   if (recv_len >= sizeof(tcphdr)) {
     size_t payload = recv_len - sizeof(tcphdr);
 
-    // 如果 payload > 0，则记录长度到队列
     if (payload > 0) {
-      // payload 长度入队（供 recvtcp 消费）
+      // payload 长度入队
       if (sk->tcp->pkt_q_count < 1024) {
         sk->tcp->pkt_len_q[sk->tcp->pkt_q_tail] = (int)payload;
         sk->tcp->pkt_q_tail = (sk->tcp->pkt_q_tail + 1) % 1024;
@@ -269,7 +267,7 @@ void ip_arrived_interrupt(sock *sk) {
         tcphdr ack = {0};
         ack.ACK = true;
         ack.ack_no = rx->seq_no + (uint32_t)payload;
-        ack.seq_no = rand_seq(); // 简化随机序列号
+        ack.seq_no = rand_seq();
 
         send_ip(sk, (uint8_t*)&ack, sizeof(ack));
         fprintf(stderr,
