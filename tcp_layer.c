@@ -15,7 +15,7 @@
 /*----------------------------------------------------------------------------*/
 
 /* Global variables ----------------------------------------------------------*/
-bool clients_turn=true;
+bool clients_turn=true, senders_turn=true;
 pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond=PTHREAD_COND_INITIALIZER;
 /*----------------------------------------------------------------------------*/
@@ -38,7 +38,7 @@ connect(size_t window, size_t mss, sock_OS *os) {
 
   pthread_mutex_lock(&lock);
 
-  fprintf(stderr, "DEBUG: 'client's turn first!\n");
+  // fprintf(stderr, "DEBUG: 'client's turn first!\n");
   sk->tcp = (sock_TCP *)malloc(sizeof(sock_TCP));
   assert(sk->tcp);
   sk->tcp->window = window;
@@ -50,56 +50,51 @@ connect(size_t window, size_t mss, sock_OS *os) {
   sk->tcp->ring_buff.head = INIT_I;
   sk->tcp->ring_buff.tail = INIT_I;
   sk->tcp->ring_buff.curr_len = INIT_N;
-
-  
-  //2.6
-  sk->tcp->pkt_q_head = 0;
-  sk->tcp->pkt_q_tail = 0;
-  sk->tcp->pkt_q_count = 0;
-  sk->tcp->recv_pending_payload = 0;
-  sk->tcp->recv_reading_payload = false;
-
-  fprintf(stderr, "DEBUG: 'client' socket created\n");
+  printf("'client' socket created\n");
   clients_turn = false;
   pthread_cond_signal(&cond);
-  fprintf(stderr, "DEBUG: 'client' set up, turn finished!\n");
+  // fprintf(stderr, "DEBUG: 'client' set up, turn finished!\n");
   
   while (!clients_turn) {
-    fprintf(stderr, "DEBUG: 'client' waiting for 'server' to finish its turn\n")
-    ;
+    // fprintf(stderr, "DEBUG: 'client' waiting for 'server' to finish its turn\n")
+    // ;
     pthread_cond_wait(&cond, &lock);
   }
 
-  fprintf(stderr, "DEBUG: 'client's turn next!\n");
+  // fprintf(stderr, "DEBUG: 'client's turn next!\n");
   syn_packet_p = (tcphdr *)malloc(sizeof(tcphdr));
   assert(syn_packet_p);
   syn_packet_p->SYN = true;
   syn_packet_p->ACK = false;
   syn_packet_p->seq_no = rand_seq();
-  fprintf(stderr, "DEBUG: 'client' sent SYN packet with seq no %u\n", 
-    syn_packet_p->seq_no);
+  printf("'client' sent SYN packet with seq no %u\n", syn_packet_p->seq_no);
   send_ip(sk, (uint8_t *)syn_packet_p, sizeof(*syn_packet_p));
   free(syn_packet_p);
   clients_turn = false;
   pthread_cond_signal(&cond);
-   fprintf(stderr, "DEBUG: 'client's turn finished!\n");
+  // fprintf(stderr, "DEBUG: 'client's turn finished!\n");
 
   if (!clients_turn) {
-    fprintf(stderr, "DEBUG: 'client' waiting for 'server' to send SYN+ACK "
-      "packet\n");
+    // fprintf(stderr, "DEBUG: 'client' waiting for 'server' to send SYN+ACK "
+    //   "packet\n");
     pthread_cond_wait(&cond, &lock);
   }
 
-  fprintf(stderr, "DEBUG: 'client's turn next!\n");
+  // fprintf(stderr, "DEBUG: 'client's turn next!\n");
   while (!syn_ack_packet_received) {
     if (sk->tcp->ring_buff.curr_len>INIT_N) {
       ring_buff_pop(&(sk->tcp->ring_buff), temp_buff, sizeof(tcphdr));
         syn_ack_packet_p = (tcphdr *)temp_buff;
         if (syn_ack_packet_p->SYN && syn_ack_packet_p->ACK) {
           syn_ack_packet_received = true;
-          fprintf(stderr, "DEBUG: 'client' received SYN+ACK packet with seq no "
-            "%u and ack no %u\n", syn_ack_packet_p->seq_no, 
-            syn_ack_packet_p->ack_no);
+          printf("'client' received SYN+ACK packet with seq no %u and ack no "
+            "%u\n", syn_ack_packet_p->seq_no, syn_ack_packet_p->ack_no);
+          sk->tcp->next_ack_no = syn_ack_packet_p->seq_no+1;
+          fprintf(stderr, "DEBUG: 'client's next ack no is %u\n", 
+            sk->tcp->next_ack_no);
+          sk->tcp->next_seq_no = syn_ack_packet_p->ack_no;
+          fprintf(stderr, "DEBUG: 'client's next seq no is %u\n", 
+            sk->tcp->next_seq_no);
         }
     }
   }
@@ -107,18 +102,18 @@ connect(size_t window, size_t mss, sock_OS *os) {
   ack_packet_p = (tcphdr *)malloc(sizeof(tcphdr));
   assert(ack_packet_p);
   ack_packet_p->ACK = true;
-  ack_packet_p->seq_no = syn_ack_packet_p->ack_no;
-  ack_packet_p->ack_no = syn_ack_packet_p->seq_no+1;
-  fprintf(stderr, "DEBUG: 'client' sent ACK packet with seq no %u and ack no %u"
-    "\n", ack_packet_p->seq_no, ack_packet_p->ack_no);
+  ack_packet_p->seq_no = sk->tcp->next_seq_no;
+  ack_packet_p->ack_no = sk->tcp->next_ack_no;
+  printf("'client' sent ACK packet with seq no %u and ack no %u\n", 
+    ack_packet_p->seq_no, ack_packet_p->ack_no);
   send_ip(sk, (uint8_t *)ack_packet_p, sizeof(*ack_packet_p));
   free(ack_packet_p);
 
   sk->tcp->connection_established = true;
-  fprintf(stderr, "DEBUG: 'client' connection established\n");
+  printf("'client' connection established\n");
   clients_turn = false;
   pthread_cond_signal(&cond);
-  fprintf(stderr, "DEBUG: 'client's turn finished!\n");
+  // fprintf(stderr, "DEBUG: 'client's turn finished!\n");
 
   pthread_mutex_unlock(&lock);
 
@@ -140,12 +135,12 @@ accept(size_t window, size_t mss, sock_OS *os) {
   pthread_mutex_lock(&lock);
 
   while (clients_turn) {
-    fprintf(stderr, "DEBUG: 'server' waiting for 'client' to finish its turn\n")
-    ;
+    // fprintf(stderr, "DEBUG: 'server' waiting for 'client' to finish its turn\n")
+    // ;
     pthread_cond_wait(&cond, &lock);
   }
 
-  fprintf(stderr, "DEBUG: 'server's turn next!\n");
+  // fprintf(stderr, "DEBUG: 'server's turn next!\n");
   sk->tcp = (sock_TCP *)malloc(sizeof(sock_TCP));
   assert(sk->tcp);
   sk->tcp->window = window;
@@ -157,35 +152,29 @@ accept(size_t window, size_t mss, sock_OS *os) {
   sk->tcp->ring_buff.head = INIT_I;
   sk->tcp->ring_buff.tail = INIT_I;
   sk->tcp->ring_buff.curr_len = INIT_N;
-
-  
-  //2.6
-  sk->tcp->pkt_q_head = 0;
-  sk->tcp->pkt_q_tail = 0;
-  sk->tcp->pkt_q_count = 0;
-  sk->tcp->recv_pending_payload = 0;
-  sk->tcp->recv_reading_payload = false;
-
-  fprintf(stderr, "DEBUG: 'server' socket created\n");
+  printf("'server' socket created\n");
   clients_turn = true;
   pthread_cond_signal(&cond);
-  fprintf(stderr, "DEBUG: 'server' set up, turn finished!\n");
+  // fprintf(stderr, "DEBUG: 'server' set up, turn finished!\n");
 
   while (clients_turn) {
-    fprintf(stderr, "DEBUG: 'server' waiting for 'client' to send SYN packet\n")
-    ;
+    // fprintf(stderr, "DEBUG: 'server' waiting for 'client' to send SYN packet\n")
+    // ;
     pthread_cond_wait(&cond, &lock);
   }
 
-  fprintf(stderr, "DEBUG: 'server's turn next!\n");
+  // fprintf(stderr, "DEBUG: 'server's turn next!\n");
   while (!syn_packet_received) {
     if (sk->tcp->ring_buff.curr_len>INIT_N) {
       ring_buff_pop(&(sk->tcp->ring_buff), temp_buff, sizeof(tcphdr));
       syn_packet_p = (tcphdr *)temp_buff;
       if (syn_packet_p->SYN && !(syn_packet_p->ACK)) {
         syn_packet_received = true;
-        fprintf(stderr, "DEBUG: 'server' received SYN packet with seq no %u\n",
+        printf("'server' received SYN packet with seq no %u\n", 
           syn_packet_p->seq_no);
+        sk->tcp->next_ack_no = syn_packet_p->seq_no+1;
+        fprintf(stderr, "DEBUG: 'server's next ack no is %u\n", 
+          sk->tcp->next_ack_no);
       }
     }
   }
@@ -195,191 +184,200 @@ accept(size_t window, size_t mss, sock_OS *os) {
   syn_ack_packet_p->SYN = true;
   syn_ack_packet_p->ACK = true;
   syn_ack_packet_p->seq_no = rand_seq();
-  syn_ack_packet_p->ack_no = syn_packet_p->seq_no+1;
-  fprintf(stderr, "DEBUG: 'server' sent SYN+ACK packet with seq no %u and ack "
-    "no %u\n", syn_ack_packet_p->seq_no, syn_ack_packet_p->ack_no);
+  syn_ack_packet_p->ack_no = sk->tcp->next_ack_no;
+  printf("'server' sent SYN+ACK packet with seq no %u and ack no %u\n", 
+    syn_ack_packet_p->seq_no, syn_ack_packet_p->ack_no);
   send_ip(sk, (uint8_t *)syn_ack_packet_p, sizeof(*syn_ack_packet_p));
   free(syn_ack_packet_p);
   clients_turn = true;
   pthread_cond_signal(&cond);
-  fprintf(stderr, "DEBUG: 'server's turn finished!\n");
+  // fprintf(stderr, "DEBUG: 'server's turn finished!\n");
 
   while (clients_turn) {
-    fprintf(stderr, "DEBUG: 'server' waiting for 'client' to send ACK packet\n")
-    ;
+    // fprintf(stderr, "DEBUG: 'server' waiting for 'client' to send ACK packet\n")
+    // ;
     pthread_cond_wait(&cond, &lock);
   }
   
-  fprintf(stderr, "DEBUG: 'server's turn next!\n");
+  // fprintf(stderr, "DEBUG: 'server's turn next!\n");
   while (!ack_packet_received) {
     if (sk->tcp->ring_buff.curr_len>INIT_N) {
       ring_buff_pop(&(sk->tcp->ring_buff), temp_buff, sizeof(tcphdr));
       ack_packet_p = (tcphdr *)temp_buff;
       if (ack_packet_p->ACK) {
         ack_packet_received = true;
-        fprintf(stderr, "DEBUG: 'server' received ACK packet with seq no %u and"
-          " ack no %u\n", ack_packet_p->seq_no, ack_packet_p->ack_no);
+        printf("'server' received ACK packet with seq no %u and ack no %u\n", 
+          ack_packet_p->seq_no, ack_packet_p->ack_no);
+          sk->tcp->next_ack_no = ack_packet_p->seq_no; 
+          fprintf(stderr, "DEBUG: 'server's next ack no is %u\n", 
+            sk->tcp->next_ack_no);
+          sk->tcp->next_seq_no = ack_packet_p->ack_no;
+          fprintf(stderr, "DEBUG: 'server's next seq no is %u\n", 
+            sk->tcp->next_seq_no);
       }
     }
   }
 
   sk->tcp->connection_established = true;
-  fprintf(stderr, "DEBUG: 'server' connection established\n");
+  printf("'server' connection established\n");
   clients_turn = true;
   pthread_cond_signal(&cond);
-  fprintf(stderr, "DEBUG: 'server's turn finished!\n");
+  // fprintf(stderr, "DEBUG: 'server's turn finished!\n");
 
   pthread_mutex_unlock(&lock);
 
   return sk;
 }
 
-void ip_arrived_interrupt(sock *sk) {
+void
+ip_arrived_interrupt(sock *sk) {
   size_t recv_len;
-  uint8_t *temp_buff = malloc(sk->tcp->window);
+  uint8_t *temp_buff=NULL;
+  tcphdr *received_packet_p=NULL, *ack_packet_p=NULL;
+  
+  temp_buff = (uint8_t *)malloc(sizeof(uint8_t)*sk->tcp->window);
   assert(temp_buff);
 
-  fprintf(stderr, "DEBUG: IP packet arrived\n");
-  recv_len = recv_ip(sk, temp_buff, sk->tcp->window);
-  fprintf(stderr, "DEBUG: IP packet received\n");
+  if (!sk->tcp->connection_established) {
+    // fprintf(stderr, "DEBUG: IP packet arrived\n");
+    recv_len = recv_ip(sk, temp_buff, sk->tcp->window);
+    // fprintf(stderr, "DEBUG: IP packet received\n");
+    ring_buff_push(&(sk->tcp->ring_buff), temp_buff, recv_len);
+    // fprintf(stderr, "DEBUG: IP packet saved to ring buffer\n");
+  } else {
+    recv_len = recv_ip(sk, temp_buff, sk->tcp->window);
 
-  // 将接收到的数据存入 ring buffer
-  ring_buff_push(&(sk->tcp->ring_buff), temp_buff, recv_len);
-  fprintf(stderr, "DEBUG: IP packet saved to ring buffer\n");
-
-  if (recv_len >= sizeof(tcphdr)) {
-    size_t payload = recv_len - sizeof(tcphdr);
-
-    if (payload > 0) {
-      // payload 长度入队
-      if (sk->tcp->pkt_q_count < 1024) {
-        sk->tcp->pkt_len_q[sk->tcp->pkt_q_tail] = (int)payload;
-        sk->tcp->pkt_q_tail = (sk->tcp->pkt_q_tail + 1) % 1024;
-        sk->tcp->pkt_q_count++;
-      } else {
-        fprintf(stderr, "Packet length queue overflow\n");
-        exit(EXIT_FAILURE);
-      }
-
-      // 如果连接已建立，回 ACK
-      if (sk->tcp->connection_established) {
-        tcphdr *rx = (tcphdr*)temp_buff;
-        tcphdr ack = {0};
-        ack.ACK = true;
-        ack.ack_no = rx->seq_no + (uint32_t)payload;
-        ack.seq_no = rand_seq();
-
-        send_ip(sk, (uint8_t*)&ack, sizeof(ack));
-        fprintf(stderr,
-          "DEBUG: sent DATA-ACK with ack_no=%u (rx seq=%u, payload=%zu)\n",
-          ack.ack_no, rx->seq_no, payload);
-      }
+    received_packet_p = (tcphdr *)temp_buff;
+    fprintf(stderr, "DEBUG: 'receiver' received packet with seq no %u, expected"
+      " seq no %u\n", received_packet_p->seq_no, sk->tcp->next_ack_no);
+    sk->tcp->next_ack_no += recv_len-sizeof(tcphdr);
+    fprintf(stderr, "DEBUG: 'receiver's next ack no is %u\n", 
+      sk->tcp->next_ack_no);
+    if (received_packet_p->ACK) {
+      fprintf(stderr, "DEBUG: That packet was an ACK packet with ack no %u\n", 
+        received_packet_p->ack_no);
+      sk->tcp->next_seq_no = received_packet_p->ack_no;
+      fprintf(stderr, "DEBUG: 'receiver's next seq no is %u\n", 
+        sk->tcp->next_seq_no);
+    } else {
+      ring_buff_push(&(sk->tcp->ring_buff), temp_buff, recv_len);
+      ack_packet_p = (tcphdr *)malloc(sizeof(tcphdr));
+      assert(ack_packet_p);
+      ack_packet_p->ACK = true;
+      ack_packet_p->seq_no = sk->tcp->next_seq_no;
+      ack_packet_p->ack_no = sk->tcp->next_ack_no;
+      printf("'receiver' sent ACK packet with seq no %u and ack no %u\n", 
+      ack_packet_p->seq_no, ack_packet_p->ack_no);
+      send_ip(sk, (uint8_t *)ack_packet_p, sizeof(*ack_packet_p));
+      free(ack_packet_p);
     }
   }
-
+  
   free(temp_buff);
 }
 
-//stage2
+void
+sendtcp(sock *sk, uint8_t *msg, size_t msg_len) {
+  int remaining_len, curr_send_len, n=INIT_N;
+  uint8_t temp_buff[sk->tcp->window], *nt_msg=NULL;
+  tcphdr tcp_header;
 
-void sendtcp(sock *sk, uint8_t *msg, size_t msg_len) {
-  assert(sk && sk->tcp);
-  assert(sk->tcp->connection_established);
+  sleep(1); // Provide time for 'receiver' to enter waiting mode
 
-  size_t mss = sk->tcp->mss;
-  size_t sent = 0;
-  uint32_t seq_no = rand_seq(); // 初始序列号，可后续存储状态
+  pthread_mutex_lock(&lock);
 
-  while (sent < msg_len) {
-    // 本段数据大小
-    size_t seg_len = (msg_len - sent > mss) ? mss : (msg_len - sent);
+  fprintf(stderr, "DEBUG: 'sender's turn first!\n");
 
-    // 分配内存存放 header + payload
-    size_t total_len = sizeof(tcphdr) + seg_len;
-    uint8_t *packet = malloc(total_len);
-    if (!packet) {
-        perror("sendtcp: malloc failed");
-        exit(EXIT_FAILURE);
+  nt_msg = (uint8_t *)malloc(sizeof(uint8_t)*msg_len);
+  assert(nt_msg);
+  memcpy(nt_msg, msg, msg_len);
+  nt_msg[msg_len-1] = CH_NU;
+  fprintf(stderr, "DEBUG: 'nt_msg' = %s\n", nt_msg);
+
+  remaining_len = msg_len;
+  while (remaining_len>INIT_N) {
+    if (sizeof(tcp_header)+remaining_len>sk->tcp->mss) {
+      curr_send_len = sk->tcp->mss;
+    } else {
+      curr_send_len = sizeof(tcp_header) + remaining_len;
     }
-
-    // 构造 header
-    tcphdr *header = (tcphdr *)packet;
-    memset(header, 0, sizeof(tcphdr));
-    header->seq_no = seq_no;
-    header->ACK = true;
-
-    // 拷贝 payload 到 packet
-    memcpy(packet + sizeof(tcphdr), msg + sent, seg_len);
-
-    // 发送
-    send_ip(sk, packet, total_len);
-    fprintf(stderr, "DEBUG: sendtcp segment seq_no=%u, len=%zu\n", seq_no, seg_len);
-
-    // 更新状态
-    seq_no += seg_len;
-    sent += seg_len;
-    free(packet);
+    tcp_header.seq_no = sk->tcp->next_seq_no;
+    tcp_header.ACK = false;
+    memcpy(temp_buff, &tcp_header, sizeof(tcp_header));
+    memcpy(temp_buff+sizeof(tcp_header), nt_msg+n, 
+    curr_send_len-sizeof(tcp_header));
+    printf("'sender' sent packet with seq no %u and msg '%.*s' of length %d\n", 
+    tcp_header.seq_no, curr_send_len-(int)sizeof(tcp_header), nt_msg+n, 
+    curr_send_len-(int)sizeof(tcp_header));
+    send_ip(sk, temp_buff, curr_send_len);
+    remaining_len -= curr_send_len - sizeof(tcp_header);
+    n += curr_send_len - sizeof(tcp_header);
+    fprintf(stderr, "DEBUG: 'curr_send_len' = %d, 'remaining_len' = %d, 'n' = "
+      "%d\n", curr_send_len, remaining_len, n);
   }
+  free(nt_msg);
+  senders_turn = false;
+  pthread_cond_signal(&cond);
+  fprintf(stderr, "DEBUG: 'sender's turn finished!\n");
+
+  while (!senders_turn) {
+    fprintf(stderr, "DEBUG: 'sender' waiting for 'receiver' to finish its turn"
+      "\n");
+    pthread_cond_wait(&cond, &lock);
+  }
+
+  fprintf(stderr, "DEBUG: 'sender' finished waiting!\n");
+
+  pthread_mutex_unlock(&lock);
 }
 
-size_t recvtcp(sock *sk, uint8_t *msg_buf, size_t msg_buf_len) {
-  assert(sk && sk->tcp);
-  sock_TCP *ts = sk->tcp;
+size_t
+recvtcp(sock *sk, uint8_t *msg_buf, size_t msg_buf_len) {
+  int read_len, remaining_len, curr_read_len, n=INIT_N;
+  uint8_t temp_buff[sk->tcp->window];
 
-  if (msg_buf_len == 0) return 0;
+  pthread_mutex_lock(&lock);
 
-  size_t copied = 0;
-
-  while (copied < msg_buf_len) {
-    // 若当前不在读 payload，则尝试开始读取一个新段
-    if (!ts->recv_reading_payload) {
-      if (ts->ring_buff.curr_len < sizeof(tcphdr) || ts->pkt_q_count == 0) {
-        break; // 暂时读不到更多，先返回已拷贝部分（可能是0）
-      }
-
-      // 丢掉头
-      uint8_t dummy_hdr[sizeof(tcphdr)];
-      ring_buff_pop(&ts->ring_buff, dummy_hdr, sizeof(tcphdr));
-
-      // 取该段payload长度
-      ts->recv_pending_payload = (size_t)ts->pkt_len_q[ts->pkt_q_head];
-      ts->pkt_q_head = (ts->pkt_q_head + 1) % 1024;
-      ts->pkt_q_count--;
-
-      ts->recv_reading_payload = true;
-
-      fprintf(stderr, "DEBUG: recvtcp start packet, payload=%zu\n",
-              ts->recv_pending_payload);
-    }
-
-    // 如果该段已读完，准备切到下一个段
-    if (ts->recv_pending_payload == 0) {
-      ts->recv_reading_payload = false;
-      continue;
-    }
-
-    // 本次最多可读
-    size_t want = msg_buf_len - copied;
-    size_t can  = ts->recv_pending_payload;
-    size_t to_read = (want < can) ? want : can;
-
-    // 保险：环形缓冲中必须至少有 to_read 字节
-    if (ts->ring_buff.curr_len < to_read) {
-      // 正常不该发生；若发生，先返回已读部分
-      break;
-    }
-
-    ring_buff_pop(&ts->ring_buff, msg_buf + copied, to_read);
-    ts->recv_pending_payload -= to_read;
-    copied += to_read;
-
-    // 如果本段读完，标记为可切换到下一段
-    if (ts->recv_pending_payload == 0) {
-      ts->recv_reading_payload = false;
-    }
+  while (senders_turn) {
+    fprintf(stderr, "DEBUG: 'receiver' waiting for 'sender' to finish its turn"
+      "\n");
+    pthread_cond_wait(&cond, &lock);
   }
 
-  return copied;
+  fprintf(stderr, "DEBUG: 'receiver's turn next!\n");
+  if (sk->tcp->ring_buff.curr_len==INIT_N) {
+      fprintf(stderr, "Nothing to read\n");
+      exit(EXIT_FAILURE);
+  } else if (sk->tcp->ring_buff.curr_len>(sizeof(tcphdr)+msg_buf_len)) {
+    read_len = sizeof(tcphdr) + msg_buf_len;
+  } else {
+    read_len = sk->tcp->ring_buff.curr_len;
+  }
+  fprintf(stderr, "DEBUG: 'read_len' = %d\n", read_len);
+
+  remaining_len = read_len;
+  while (remaining_len>INIT_N) {
+    if (remaining_len>sk->tcp->mss) { /* According to project specification 
+      section 2.4 'MSS' includes TCP header */
+      curr_read_len = sk->tcp->mss;
+    } else {
+      curr_read_len = remaining_len;
+    }
+    ring_buff_pop(&(sk->tcp->ring_buff), temp_buff, curr_read_len);
+    memcpy(msg_buf+n, temp_buff+sizeof(tcphdr), curr_read_len-sizeof(tcphdr));
+    remaining_len -= curr_read_len;
+    n += curr_read_len - sizeof(tcphdr);
+    fprintf(stderr, "DEBUG: 'curr_read_len' = %d, 'remaining_len' = %d, 'n' = "
+      "%d\n", curr_read_len, remaining_len, n);
+  }
+
+  senders_turn = true;
+  pthread_cond_signal(&cond);
+  fprintf(stderr, "DEBUG: 'receiver's turn finished!\n");
+
+  pthread_mutex_unlock(&lock);
+
+  return n;
 }
 
 /* Adapted from https://embedjournal.com/implementing-circular-buffer-embedded-
