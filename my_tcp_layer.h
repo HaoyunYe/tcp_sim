@@ -22,6 +22,17 @@ struct sock_TCP {
   size_t window;
   size_t mss;
   ring_buff_t ring_buff;
+
+  //2.6：记录每个到达的payload长度
+  int    pkt_len_q[1024];
+  int    pkt_q_head;
+  int    pkt_q_tail;
+  int    pkt_q_count;
+
+  //当前正在读的这个段还剩多少payload未读
+  size_t recv_pending_payload;
+  bool   recv_reading_payload;
+
   bool connection_established;
 };
 

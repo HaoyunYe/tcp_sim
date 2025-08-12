@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <string.h>
 
 /* File inclusions */
 #include "my_tcp_layer.h"
@@ -49,6 +50,15 @@ connect(size_t window, size_t mss, sock_OS *os) {
   sk->tcp->ring_buff.head = INIT_I;
   sk->tcp->ring_buff.tail = INIT_I;
   sk->tcp->ring_buff.curr_len = INIT_N;
+
+  
+  // 新增 2.6 初始化
+  sk->tcp->pkt_q_head = 0;
+  sk->tcp->pkt_q_tail = 0;
+  sk->tcp->pkt_q_count = 0;
+  sk->tcp->recv_pending_payload = 0;
+  sk->tcp->recv_reading_payload = false;
+
   fprintf(stderr, "DEBUG: 'client' socket created\n");
   clients_turn = false;
   pthread_cond_signal(&cond);
@@ -147,6 +157,15 @@ accept(size_t window, size_t mss, sock_OS *os) {
   sk->tcp->ring_buff.head = INIT_I;
   sk->tcp->ring_buff.tail = INIT_I;
   sk->tcp->ring_buff.curr_len = INIT_N;
+
+  
+  // 新增 2.6 初始化
+  sk->tcp->pkt_q_head = 0;
+  sk->tcp->pkt_q_tail = 0;
+  sk->tcp->pkt_q_count = 0;
+  sk->tcp->recv_pending_payload = 0;
+  sk->tcp->recv_reading_payload = false;
+
   fprintf(stderr, "DEBUG: 'server' socket created\n");
   clients_turn = true;
   pthread_cond_signal(&cond);
@@ -228,17 +247,127 @@ ip_arrived_interrupt(sock *sk) {
   fprintf(stderr, "DEBUG: IP packet received\n");
   ring_buff_push(&(sk->tcp->ring_buff), temp_buff, recv_len);
   fprintf(stderr, "DEBUG: IP packet saved to ring buffer\n");
+
+  //2.6
+  // 只为有payload的数据包记录长度 握手包忽略
+  if (recv_len >= sizeof(tcphdr)) {
+    size_t payload = recv_len - sizeof(tcphdr);
+    if (payload > 0) {
+      if (sk->tcp->pkt_q_count < 1024) {
+        sk->tcp->pkt_len_q[sk->tcp->pkt_q_tail] = (int)payload;
+        sk->tcp->pkt_q_tail = (sk->tcp->pkt_q_tail + 1) % 1024;
+        sk->tcp->pkt_q_count++;
+      } else {
+        fprintf(stderr, "Packet length queue overflow\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+  }
+
   
   free(temp_buff);
 }
 
+//stage2
+
 void sendtcp(sock *sk, uint8_t *msg, size_t msg_len) {
-  // Your code here
+  assert(sk && sk->tcp);
+  assert(sk->tcp->connection_established);
+
+  size_t mss = sk->tcp->mss;
+  size_t sent = 0;
+  uint32_t seq_no = rand_seq(); // 初始序列号，可后续存储状态
+
+  while (sent < msg_len) {
+    // 本段数据大小
+    size_t seg_len = (msg_len - sent > mss) ? mss : (msg_len - sent);
+
+    // 分配内存存放 header + payload
+    size_t total_len = sizeof(tcphdr) + seg_len;
+    uint8_t *packet = malloc(total_len);
+    if (!packet) {
+        perror("sendtcp: malloc failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // 构造 header
+    tcphdr *header = (tcphdr *)packet;
+    memset(header, 0, sizeof(tcphdr));
+    header->seq_no = seq_no;
+    header->ACK = true;
+
+    // 拷贝 payload 到 packet
+    memcpy(packet + sizeof(tcphdr), msg + sent, seg_len);
+
+    // 发送
+    send_ip(sk, packet, total_len);
+    fprintf(stderr, "DEBUG: sendtcp segment seq_no=%u, len=%zu\n", seq_no, seg_len);
+
+    // 更新状态
+    seq_no += seg_len;
+    sent += seg_len;
+    free(packet);
+  }
 }
 
 size_t recvtcp(sock *sk, uint8_t *msg_buf, size_t msg_buf_len) {
-  // Your code here
-  return 0;
+  assert(sk && sk->tcp);
+  sock_TCP *ts = sk->tcp;
+
+  if (msg_buf_len == 0) return 0;
+
+  size_t copied = 0;
+
+  while (copied < msg_buf_len) {
+    // 若当前不在读 payload，则尝试开始读取一个新段
+    if (!ts->recv_reading_payload) {
+      if (ts->ring_buff.curr_len < sizeof(tcphdr) || ts->pkt_q_count == 0) {
+        break; // 暂时读不到更多，先返回已拷贝部分（可能是0）
+      }
+
+      // 丢掉头
+      uint8_t dummy_hdr[sizeof(tcphdr)];
+      ring_buff_pop(&ts->ring_buff, dummy_hdr, sizeof(tcphdr));
+
+      // 取该段payload长度
+      ts->recv_pending_payload = (size_t)ts->pkt_len_q[ts->pkt_q_head];
+      ts->pkt_q_head = (ts->pkt_q_head + 1) % 1024;
+      ts->pkt_q_count--;
+
+      ts->recv_reading_payload = true;
+
+      fprintf(stderr, "DEBUG: recvtcp start packet, payload=%zu\n",
+              ts->recv_pending_payload);
+    }
+
+    // 如果该段已读完，准备切到下一个段（回到 while 顶部）
+    if (ts->recv_pending_payload == 0) {
+      ts->recv_reading_payload = false;
+      continue;
+    }
+
+    // 本次最多可读
+    size_t want = msg_buf_len - copied;
+    size_t can  = ts->recv_pending_payload;
+    size_t to_read = (want < can) ? want : can;
+
+    // 保险：环形缓冲中必须至少有 to_read 字节（都是 payload）
+    if (ts->ring_buff.curr_len < to_read) {
+      // 正常不该发生；若发生，先返回已读部分
+      break;
+    }
+
+    ring_buff_pop(&ts->ring_buff, msg_buf + copied, to_read);
+    ts->recv_pending_payload -= to_read;
+    copied += to_read;
+
+    // 如果本段读完，标记为可切换到下一段
+    if (ts->recv_pending_payload == 0) {
+      ts->recv_reading_payload = false;
+    }
+  }
+
+  return copied; // 一次可能把多个段拼起来返回
 }
 
 /* Adapted from https://embedjournal.com/implementing-circular-buffer-embedded-
