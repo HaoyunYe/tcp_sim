@@ -1,39 +1,54 @@
 #include <stdio.h>
+#include <unistd.h>
 #include "tcp_layer.h"
 
-void *
-app_client(void *socket) {
+void *app_client (void *socket)
+{
   const int buff_size = 1000;
   uint8_t buff[buff_size];
+  uint8_t buffer[3];  // 小缓冲区
+  size_t len;
 
   sock_OS *sk_OS = (sock_OS *)socket;
 
-  sock *sk = connect(get_tcp_window(sk_OS), get_tcp_mss(sk_OS), sk_OS);
+  sock *sk = connect (get_tcp_window(sk_OS), get_tcp_mss(sk_OS), sk_OS);
 
-  sendtcp(sk, (uint8_t *)"Hello", 6);
+  sendtcp(sk, (uint8_t*)"Hellooooooooooooooooooooooooooooooooooooooooooooooooooooooooo", 62); //长消息测试
 
-  size_t len = recvtcp(sk, buff, buff_size);
-  printf("Received message of length %zu: %.*s\n", len, 
-    len < 1000 ? (int)len : 1000, buff);
-  
+  while ((len = recvtcp(sk, buffer, sizeof(buffer))) == 0) {
+    usleep(100);
+  }
+
+  //把第一次读到的这块先打印出来，别丢
+  printf("%.*s", (int)len, (char*)buffer);
+
+  // 再继续把后续块都读完、打印
+  while ((len = recvtcp(sk, buffer, sizeof(buffer))) > 0) {
+    printf("%.*s", (int)len, (char*)buffer);
+  }
+  printf("\n");
+
   return NULL;
 }
 
-void *
-app_server(void *socket) {
+void *app_server (void *socket)
+{
   const int buff_size = 1000;
   uint8_t buff[buff_size];
 
   sock_OS *sk_OS = (sock_OS *)socket;
 
-  sock *sk = accept(get_tcp_window(sk_OS), get_tcp_mss(sk_OS), sk_OS);
+  sock *sk = accept (get_tcp_window(sk_OS), get_tcp_mss(sk_OS), sk_OS);
 
-  size_t len = recvtcp(sk, buff, buff_size);
-  printf("Received message of length %zu: %.*s\n", len, 
-    len < 1000 ? (int)len : 1000, buff);
+  size_t len;
+  
+  while ((len = recvtcp(sk, buff, buff_size)) == 0) {
+    usleep(100);
+  }
+  
+  printf("%.*s\n", (int)len, (char*)buff);
 
-  sendtcp(sk, (uint8_t *)"Hello to you too", 8);
-
+  sendtcp(sk, (uint8_t*)"Hello to you too", 17);
   return NULL;
 }
 
